@@ -4,10 +4,12 @@ import pygame
 from settings import Settings
 from game_stats import GameStats
 from scoreboard import Scoreboard
-from button import Button
+# from button import Button
 from ship import Ship
 from bullet import Bullet
 from alien import Alien
+from retro_background import RetroBackground
+from retro_menu import RetroMenu
 
 class AlienInvasion:
     """Overall class to manage game assets and behavior."""
@@ -18,7 +20,7 @@ class AlienInvasion:
         self.clock = pygame.time.Clock()
         self.settings = Settings()
 
-        self.screen = pygame.display.set_mode((0,0), pygame.FULLSCREEN)
+        self.screen = pygame.display.set_mode((1280, 720))
         self.settings.screen_width = self.screen.get_rect().width
         self.settings.screen_height = self.screen.get_rect().height  #update the screen dimensions to match the actual screen size
         pygame.display.set_caption("Alien Invasion")  
@@ -30,14 +32,16 @@ class AlienInvasion:
         self.bullets = pygame.sprite.Group()
         self.aliens = pygame.sprite.Group()
 
-        self._create_fleet()
+        # self._create_fleet()
         self.game_active = False  # Start the game in an inactive state
 
-        self.play_button = Button(self, "Play")
-        self.bg_color = self.settings.bg_color
+        self.background = RetroBackground(self.screen.get_size())
+        self.menu = RetroMenu(self.screen)
 
+    
     def run_game(self):
         """Start the main loop for the game."""
+
         while True:
             self._check_events()
 
@@ -45,9 +49,15 @@ class AlienInvasion:
                 self.ship.update()
                 self._update_bullets()
                 self._update_aliens()
-            
+
+            # Update background animations.
+            self.background.update()
+
+            # Draw the screen.
             self._update_screen()
+
             self.clock.tick(60)
+
 
     def _check_events(self):
         """Respond to keypresses and mouse events."""
@@ -62,38 +72,53 @@ class AlienInvasion:
             elif event.type == pygame.KEYUP:
                 self._check_keyup_events(event)
 
-    def _check_play_button(self, mouse_pos):
-        """Start a new game when the player clicks Play."""
-        button_clicked = self.play_button.rect.collidepoint(mouse_pos)
-        if button_clicked and not self.game_active:
-            self.settings.initialize_dynamic_settings()  # Reset the game settings.
-            # Reset the game statistics.
-            self.stats.reset_stats()
-            self.sb.prep_score()  # Reset the score display
-            self.sb.prep_level()  # Reset the level display
-            self.sb.prep_ships()
-            self.game_active = True
+    def _start_game(self):
+        """Initialize a new game."""
+        self.settings.initialize_dynamic_settings()
+        
+        self.stats.reset_stats()
 
-            # Get rid of any remaining aliens and bullets.
-            self.aliens.empty()
-            self.bullets.empty()
+        self.sb.prep_score()
+        self.sb.prep_level()
+        self.sb.prep_ships()
 
-            # Create a new fleet and center the ship.
-            self._create_fleet()
-            self.ship.center_ship()
+        self.aliens.empty()
+        self.bullets.empty()
 
-            # Hide the mouse cursor.
-            pygame.mouse.set_visible(False)
+        self._create_fleet()
+        self.ship.center_ship()
+
+        self.game_active = True
+
+        pygame.mouse.set_visible(False)
     
     def _check_keydown_events(self, event):
         """Respond to keypresses."""
+
+        # Menu controls.
+        if not self.game_active:
+
+            if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                self._start_game()
+
+            elif event.key == pygame.K_q:
+                pygame.quit()
+                sys.exit()
+
+            return
+
+        # Gameplay controls.
         if event.key == pygame.K_RIGHT:
             self.ship.moving_right = True
+
         elif event.key == pygame.K_LEFT:
             self.ship.moving_left = True
+
         elif event.key == pygame.K_SPACE:
             self._fire_bullet()
+
         elif event.key == pygame.K_q:
+            pygame.quit()
             sys.exit()
     
     def _check_keyup_events(self, event):
@@ -102,6 +127,13 @@ class AlienInvasion:
             self.ship.moving_right = False
         elif event.key == pygame.K_LEFT:
             self.ship.moving_left = False
+
+    def _check_play_button(self, mouse_pos):
+        """Start the game when START GAME is clicked."""
+
+        if not self.game_active:
+            if self.menu.start_rect.collidepoint(mouse_pos):
+                self._start_game()
     
     def _fire_bullet(self):
         """Create a new bullet and add it to the bullets group."""
@@ -185,8 +217,9 @@ class AlienInvasion:
         alien = Alien(self)
         alien_width, alien_height = alien.rect.size
 
-        current_x, current_y = alien_width, alien_height
-        while current_y < (self.settings.screen_height - 10 * alien_height):
+        current_x = alien_width
+        current_y = max(alien_height, 80)
+        while current_y < (self.settings.screen_height - 20 * alien_height):
             while current_x < (self.settings.screen_width - 2 * alien_width):
                 self._create_alien(current_x, current_y)
                 current_x += 2 * alien_width
@@ -218,17 +251,30 @@ class AlienInvasion:
 
 
     def _update_screen(self):
-        """Update images on the screen, and flip to the new screen."""
-        self.screen.fill(self.bg_color)
-        self.ship.blitme()
-        for bullet in self.bullets.sprites():
-            bullet.draw_bullet()
-        self.aliens.draw(self.screen)
+        """Draw the game screen."""
 
-        self.sb.show_score()  # Display the score
+        # Draw the retro background.
+        self.background.draw(self.screen)
 
-        if not self.game_active:
-            self.play_button.draw_button()
+        if self.game_active:
+
+            # Draw the spaceship.
+            self.ship.blitme()
+
+            # Draw bullets.
+            for bullet in self.bullets.sprites():
+                bullet.draw_bullet()
+
+            # Draw aliens.
+            self.aliens.draw(self.screen)
+
+            # Draw scoreboard.
+            self.sb.show_score()
+
+        else:
+
+            # Draw the retro main menu.
+            self.menu.draw()
 
         pygame.display.flip()
     
